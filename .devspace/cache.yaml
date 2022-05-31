@@ -1,0 +1,9 @@
+images:
+    vcluster:
+        imageConfigHash: 89adfb4f528b93bbfd610372228aa09b976de5c24e758d18821d91c3b6280d58
+        dockerfileHash: fcfc7400d0a8632f225a5a2e97b24b3dd21690cf1092bd183d1d6d368d8308ab
+        imageName: ghcr.io/loft-sh/vcluster-cert-manager-plugin
+        tag: gJipQpK
+lastContext:
+    namespace: vcluster
+    context: docker-desktop
