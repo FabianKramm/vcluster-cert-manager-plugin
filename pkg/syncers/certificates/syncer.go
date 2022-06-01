@@ -14,11 +14,15 @@ import (
 func New(ctx *context.RegisterContext) syncer.Syncer {
 	return &certificateSyncer{
 		NamespacedTranslator: translator.NewNamespacedTranslator(ctx, "certificate", &certmanagerv1.Certificate{}),
+
+		virtualClient: ctx.VirtualManager.GetClient(),
 	}
 }
 
 type certificateSyncer struct {
 	translator.NamespacedTranslator
+
+	virtualClient client.Client
 }
 
 var _ syncer.Initializer = &certificateSyncer{}
@@ -28,7 +32,17 @@ func (s *certificateSyncer) Init(ctx *context.RegisterContext) error {
 }
 
 func (s *certificateSyncer) SyncDown(ctx *context.SyncContext, vObj client.Object) (ctrl.Result, error) {
-	return s.SyncDownCreate(ctx, vObj, s.translate(vObj.(*certmanagerv1.Certificate)))
+	vCertificate := vObj.(*certmanagerv1.Certificate)
+
+	// was certificate created by ingress?
+	shouldSync, _ := s.shouldSyncBackwards(nil, vCertificate)
+	if shouldSync {
+		// delete here as certificate is no longer needed
+		ctx.Log.Infof("delete virtual certificate %s/%s, because physical got deleted", vObj.GetNamespace(), vObj.GetName())
+		return ctrl.Result{}, ctx.VirtualClient.Delete(ctx.Context, vObj)
+	}
+
+	return s.SyncDownCreate(ctx, vObj, s.translate(vCertificate))
 }
 
 func (s *certificateSyncer) Sync(ctx *context.SyncContext, pObj client.Object, vObj client.Object) (ctrl.Result, error) {
@@ -48,6 +62,48 @@ func (s *certificateSyncer) Sync(ctx *context.SyncContext, pObj client.Object, v
 		return ctrl.Result{}, nil
 	}
 
+	// was certificate created by ingress?
+	shouldSync, _ := s.shouldSyncBackwards(pCertificate, vCertificate)
+	if shouldSync {
+		updated, err := s.translateUpdateBackwards(pCertificate, vCertificate)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if updated != nil {
+			ctx.Log.Infof("update virtual certificate %s/%s, because spec is out of sync", vCertificate.Namespace, vCertificate.Name)
+			return ctrl.Result{}, s.virtualClient.Update(ctx.Context, updated)
+		}
+
+		return ctrl.Result{}, nil
+	}
+
 	// did the certificate change?
 	return s.SyncDownUpdate(ctx, vObj, s.translateUpdate(pCertificate, vCertificate))
+}
+
+var _ syncer.UpSyncer = &certificateSyncer{}
+
+func (s *certificateSyncer) SyncUp(ctx *context.SyncContext, pObj client.Object) (ctrl.Result, error) {
+	pCertificate := pObj.(*certmanagerv1.Certificate)
+
+	// was certificate created by ingress?
+	shouldSync, vName := s.shouldSyncBackwards(pCertificate, nil)
+	if shouldSync {
+		ctx.Log.Infof("create virtual certificate %s/%s, because physical is there and virtual is missing", vName.Namespace, vName.Name)
+		vCertificate, err := s.translateBackwards(pCertificate, vName)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+
+		return ctrl.Result{}, s.virtualClient.Create(ctx.Context, vCertificate)
+	}
+
+	managed, err := s.IsManaged(pObj)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if !managed {
+		return ctrl.Result{}, nil
+	}
+	return syncer.DeleteObject(ctx, pObj)
 }

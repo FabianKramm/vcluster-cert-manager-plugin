@@ -5,7 +5,6 @@ import (
 	"github.com/loft-sh/vcluster-cert-manager-plugin/pkg/constants"
 	"github.com/loft-sh/vcluster-cert-manager-plugin/pkg/hooks/ingresses"
 	"github.com/loft-sh/vcluster-cert-manager-plugin/pkg/syncers/certificates"
-	"github.com/loft-sh/vcluster-cert-manager-plugin/pkg/syncers/certificatesecrets"
 	"github.com/loft-sh/vcluster-cert-manager-plugin/pkg/syncers/issuers"
 	"github.com/loft-sh/vcluster-cert-manager-plugin/pkg/syncers/secrets"
 	"github.com/loft-sh/vcluster-sdk/plugin"
@@ -34,12 +33,6 @@ func main() {
 	err = plugin.Register(certificates.New(registerCtx))
 	if err != nil {
 		klog.Fatalf("Error registering certificate syncer: %v", err)
-	}
-
-	// register certificate secret syncer
-	err = plugin.Register(certificatesecrets.New(registerCtx))
-	if err != nil {
-		klog.Fatalf("Error registering certificate secrets syncer: %v", err)
 	}
 
 	// register issuer syncer

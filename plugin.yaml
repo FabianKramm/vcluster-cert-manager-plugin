@@ -1,7 +1,7 @@
 # Plugin Definition below. This is essentially a valid helm values file that will be merged
 # with the other vcluster values during vcluster create or helm install.
 plugin:
-  cert-manager:
+  cert-manager-plugin:
     image: ghcr.io/loft-sh/vcluster-cert-manager-plugin:v1
     imagePullPolicy: IfNotPresent
     rbac:
